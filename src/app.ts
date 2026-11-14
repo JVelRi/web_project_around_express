@@ -1,6 +1,6 @@
-import express from "express";
-import { logRequest } from "./middleware/logger.js";
-import router from "./router/index.js";
+import express from 'express';
+import { logRequest } from './middleware/logger.js';
+import router from './routes/index.js';
 const app = express();
 
 app.use(logRequest);
