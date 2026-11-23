@@ -1,41 +1,95 @@
-import type { RequestHandler } from 'express';
-import type { User } from '../types/user.js';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import type { Request, Response } from 'express';
+import mongoose from 'mongoose';
+import User from '../models/user.js';
 
-const userPath = path.join(import.meta.dirname, '../../data/users.json');
-
-const readUsers = async (): Promise<User[]> => {
-  const usersFile = await fs.readFile(userPath, 'utf8');
-  return JSON.parse(usersFile);
+const getUsers = async (_req: Request, res: Response) => {
+  const users = await User.find({});
+  res.send(users);
 };
 
-const getUsers: RequestHandler = async (_req, res) => {
-  try {
-    const users = await readUsers();
-
-    res.json(users);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'An error has ocurred on the server' });
+const getUserById = async (req: Request, res: Response) => {
+  if (!mongoose.Types.ObjectId.isValid(String(req.params._id))) {
+    throw Object.assign(new Error('No se encontró ningun usuario con ese id'), {
+      statusCode: 404,
+    });
   }
+
+  const user = await User.findById(req.params._id);
+  res.send(user);
 };
 
-const getUserById: RequestHandler = async (req, res) => {
-  try {
-    const users = await readUsers();
-    const userId = req.params._id;
+const createUser = async (req: Request, res: Response) => {
+  const user = await User.create({
+    name: req.body.name,
+    about: req.body.about,
+    avatar: req.body.avatar,
+  });
+  res.status(201).send(user);
+};
 
-    const user = users.find((u) => u._id === userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User ID not found' });
-    }
-
-    res.json(user);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'An error has ocurred on the server' });
+const getUserMe = async (req: Request, res: Response) => {
+  if (!mongoose.Types.ObjectId.isValid(String(req.user?._id))) {
+    throw Object.assign(new Error('No se encontró ningun usuario con ese id'), {
+      statusCode: 404,
+    });
   }
+
+  const user = await User.findById(req.user?._id);
+  res.send(user);
 };
 
-export { getUsers, getUserById };
+const updateUserMe = async (req: Request, res: Response) => {
+  if (!req.user) {
+    throw Object.assign(new Error('No autorizado'), { statusCode: 401 });
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      name: req.body.name,
+      about: req.body.about,
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+  if (!user) {
+    throw Object.assign(new Error('No se encontró ningun usuario con ese id'), {
+      statusCode: 404,
+    });
+  }
+  res.send(user);
+};
+
+const updateUserAvatarMe = async (req: Request, res: Response) => {
+  if (!req.user) {
+    throw Object.assign(new Error('No autorizado'), { statusCode: 401 });
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      avatar: req.body.avatar,
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+  if (!user) {
+    throw Object.assign(new Error('No se encontró ningun usuario con ese id'), {
+      statusCode: 404,
+    });
+  }
+  res.send(user);
+};
+
+export {
+  getUsers,
+  getUserById,
+  createUser,
+  getUserMe,
+  updateUserMe,
+  updateUserAvatarMe,
+};

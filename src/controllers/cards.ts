@@ -1,23 +1,101 @@
-import type { RequestHandler } from "express";
-import fs from "node:fs/promises";
-import path from "node:path";
-import type { Card } from "../types/card.js";
+import type { Request, Response } from 'express';
+import mongoose from 'mongoose';
+import Card from '../models/card.js';
 
-const cardPath = path.join(import.meta.dirname, "../../data/cards.json");
+const getCards = async (req: Request, res: Response) => {
+  const cards = await Card.find({});
+  const userId = req.user?._id;
+  const cardsWithIsLiked = cards.map((card) => ({
+    ...card.toObject(),
+    isLiked: card.likes.some((id) => id.toString() === userId),
+  }));
 
-const readCards = async (): Promise<Card[]> => {
-  const cardsFile = await fs.readFile(cardPath, "utf8");
-  return JSON.parse(cardsFile);
+  res.send(cardsWithIsLiked);
+  res.send(cards);
 };
 
-const getCards: RequestHandler = async (_req, res) => {
-  try {
-    const cards = await readCards();
-    res.json(cards);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "An error has ocurred on the server" });
+const createCard = async (req: Request, res: Response) => {
+  if (!req.user) {
+    throw Object.assign(new Error('No autorizado'), { statusCode: 401 });
   }
+  const card = await Card.create({
+    name: req.body.name,
+    link: req.body.link,
+    owner: req.user._id,
+  });
+  res.status(201).send(card);
 };
 
-export { getCards };
+const deleteCard = async (req: Request, res: Response) => {
+  if (!mongoose.Types.ObjectId.isValid(String(req.params.id))) {
+    throw Object.assign(new Error('ID invalido'), { statusCode: 400 });
+  }
+  const card = await Card.findByIdAndDelete(req.params.id);
+  if (!card) {
+    throw Object.assign(
+      new Error('No se encontró ninguna tarjeta con ese id'),
+      {
+        statusCode: 404,
+      },
+    );
+  }
+  res.send(card);
+};
+
+const likeCard = async (req: Request, res: Response) => {
+  if (!req.user) {
+    throw Object.assign(new Error('No autorizado'), { statusCode: 401 });
+  }
+  if (!mongoose.Types.ObjectId.isValid(String(req.params.id))) {
+    throw Object.assign(new Error('ID inválido'), { statusCode: 400 });
+  }
+  const card = await Card.findByIdAndUpdate(
+    req.params.id,
+    {
+      $addToSet: { likes: req.user?._id },
+    },
+    { new: true },
+  );
+  if (!card) {
+    throw Object.assign(
+      new Error('No se encontró ninguna tarjeta con ese id'),
+      {
+        statusCode: 404,
+      },
+    );
+  }
+  const userId = req.user?._id;
+  res.send({
+    ...card.toObject(),
+    isLiked: card.likes.some((id) => id.toString() === userId),
+  });
+};
+
+const dislikeCard = async (req: Request, res: Response) => {
+  if (!req.user) {
+    throw Object.assign(new Error('No autorizado'), { statusCode: 401 });
+  }
+  if (!mongoose.Types.ObjectId.isValid(String(req.params.id))) {
+    throw Object.assign(new Error('ID inválido'), { statusCode: 400 });
+  }
+  const card = await Card.findByIdAndUpdate(
+    req.params.id,
+    { $pull: { likes: req.user?._id } },
+    { new: true },
+  );
+  if (!card) {
+    throw Object.assign(
+      new Error('No se encontró ninguna tarjeta con ese id'),
+      {
+        statusCode: 404,
+      },
+    );
+  }
+  const userId = req.user?._id;
+  res.send({
+    ...card.toObject(),
+    isLiked: card.likes.some((id) => id.toString() === userId),
+  });
+};
+
+export { getCards, createCard, deleteCard, likeCard, dislikeCard };

@@ -22,7 +22,8 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "express": "^5.3.0"
+    "express": "^5.3.0",
+    "mongoose": "^9.13.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
