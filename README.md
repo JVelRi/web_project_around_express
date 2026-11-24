@@ -1,75 +1,129 @@
-# Tripleten web_project_around_express
-
 # Around Express
 
-API REST construida con Express y TypeScript que sirve los datos de usuarios y tarjetas de la aplicación **Around the U.S.** a partir de archivos JSON locales.
+API REST construida con **Express**, **TypeScript** y **MongoDB (Mongoose)** que sirve los datos de usuarios y tarjetas de la aplicación **Around the U.S.**
 
 ## Descripción
 
-Este proyecto es el backend de Around the U.S. Expone una API que lee los archivos `users.json` y `cards.json` y devuelve su contenido en formato JSON. También permite consultar un usuario específico por su identificador.
+Este proyecto es el backend de Around the U.S. Almacena usuarios y tarjetas en una base de datos MongoDB y expone endpoints para crearlos, consultarlos, actualizarlos y eliminarlos. Las tarjetas admiten likes, y cada respuesta incluye el campo calculado `isLiked`, que indica si el usuario actual le dio like.
 
-### Funcionalidad
+> **Nota:** mientras no exista autenticación, un middleware temporal asigna un usuario fijo a `req.user` en cada petición. Será reemplazado cuando se implemente la autorización.
 
-| Método | Ruta          | Descripción                             |
-| ------ | ------------- | --------------------------------------- |
-| GET    | `/users`      | Devuelve la lista completa de usuarios  |
-| GET    | `/users/:_id` | Devuelve el usuario cuyo `_id` coincide |
-| GET    | `/cards`      | Devuelve la lista completa de tarjetas  |
+## Funcionalidad
 
-Ejemplo:
+### Usuarios
+
+| Método | Ruta               | Descripción                                 |
+| ------ | ------------------ | ------------------------------------------- |
+| GET    | `/users`           | Devuelve la lista de usuarios               |
+| GET    | `/users/:id`       | Devuelve el usuario cuyo `_id` coincide     |
+| POST   | `/users`           | Crea un usuario (`name`, `about`, `avatar`) |
+| PATCH  | `/users/me`        | Actualiza el perfil (`name`, `about`)       |
+| PATCH  | `/users/me/avatar` | Actualiza el avatar (`avatar`)              |
+
+### Tarjetas
+
+| Método | Ruta               | Descripción                       |
+| ------ | ------------------ | --------------------------------- |
+| GET    | `/cards`           | Devuelve todas las tarjetas       |
+| POST   | `/cards`           | Crea una tarjeta (`name`, `link`) |
+| DELETE | `/cards/:id`       | Elimina una tarjeta               |
+| PUT    | `/cards/:id/likes` | Da like a una tarjeta             |
+| DELETE | `/cards/:id/likes` | Quita el like de una tarjeta      |
+
+### Ejemplos
+
+Crear un usuario:
 
 ```
-GET http://localhost:3000/users/8340d0ec33270a25f2413b69
+POST http://localhost:3000/users
 ```
 
 ```json
 {
-  "name": "Katherine Johnson",
-  "about": "Mathematician",
-  "avatar": "https://...",
-  "_id": "8340d0ec33270a25f2413b69"
+  "name": "Ana Pérez",
+  "about": "Exploradora",
+  "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330"
 }
 ```
 
-### Manejo de errores
+Respuesta de una tarjeta:
 
-Todas las respuestas de error contienen únicamente el campo `message`.
+```json
+{
+  "_id": "665f1c2a9b1e8a3d4c5b6a7f",
+  "name": "Valle del Cocora",
+  "link": "https://...",
+  "owner": "6b04bf15648f9ab4cd0b1891",
+  "likes": ["6b04bf15648f9ab4cd0b1891"],
+  "createdAt": "2026-11-23T10:00:00.000Z",
+  "isLiked": true
+}
+```
 
-| Estatus | Cuándo ocurre                                                     | Respuesta                                              |
-| ------- | ----------------------------------------------------------------- | ------------------------------------------------------ |
-| 404     | No existe un usuario con el `_id` solicitado                      | `{ "message": "User ID not found" }`                   |
-| 404     | La ruta solicitada no existe                                      | `{ "message": "Requested resource not found" }`        |
-| 500     | Error inesperado (por ejemplo, fallo al leer un archivo de datos) | `{ "message": "An error has occurred on the server" }` |
+## Modelos
+
+**User**
+
+| Campo    | Tipo   | Reglas      |
+| -------- | ------ | ----------- |
+| `name`   | String | Obligatorio |
+| `about`  | String | Obligatorio |
+| `avatar` | String | Obligatorio |
+
+**Card**
+
+| Campo       | Tipo                    | Reglas                         |
+| ----------- | ----------------------- | ------------------------------ |
+| `name`      | String                  | Obligatorio, 2 a 30 caracteres |
+| `link`      | String                  | Obligatorio                    |
+| `owner`     | ObjectId (ref `User`)   | Obligatorio                    |
+| `likes`     | [ObjectId] (ref `User`) | Vacío por defecto              |
+| `createdAt` | Date                    | Valor por defecto `Date.now`   |
+
+## Manejo de errores
+
+Todas las respuestas de error contienen únicamente el campo `message`. Los errores se lanzan con `throw` desde los controladores y se procesan en un middleware centralizado.
+
+| Estatus | Cuándo ocurre                                             | Respuesta de ejemplo                                         |
+| ------- | --------------------------------------------------------- | ------------------------------------------------------------ |
+| 400     | ID inválido o datos que no pasan la validación del modelo | `{ "message": "ID inválido" }`                               |
+| 401     | No hay un usuario asignado a la petición                  | `{ "message": "No autorizado" }`                             |
+| 404     | No existe el usuario o la tarjeta con el `id` solicitado  | `{ "message": "No se encontró ninguna tarjeta con ese id" }` |
+| 404     | La ruta solicitada no existe                              | `{ "message": "Ruta GET /ruta no encontrada" }`              |
+| 500     | Error inesperado del servidor                             | `{ "message": "Ha ocurrido un error en el servidor" }`       |
 
 ## Tecnologías y técnicas utilizadas
 
 - **Node.js** como entorno de ejecución.
-- **Express** para el servidor y el enrutamiento.
-- **TypeScript** para tipado estático (interfaces `User` y `Card`).
+- **Express 5** para el servidor y el enrutamiento (los errores de handlers `async` llegan solos al middleware de errores).
+- **TypeScript** con tipado estático y extensión del tipo `Request` para `req.user`.
+- **MongoDB** y **Mongoose** para modelos, validaciones y consultas.
+- **Operadores atómicos de MongoDB** (`$addToSet`, `$pull`) para gestionar los likes.
 - **ES Modules** (`import` / `export`).
-- **`node:fs/promises`** para leer los archivos de datos de forma asíncrona.
-- **`node:path` e `import.meta.dirname`** para construir rutas absolutas a los archivos de datos de forma segura.
 - **ESLint** y **Prettier** para mantener la calidad y el estilo del código.
 - **EditorConfig** para uniformar el formato entre editores.
-- **Arquitectura por capas:** rutas (`router`), controladores (`controller`), middleware y tipos (`types`).
-- **Manejo de errores** con `try/catch` en cada controlador y un controlador para rutas inexistentes.
+- **Arquitectura por capas:** rutas, controladores, modelos, middleware y tipos.
+- **Middleware centralizado de errores** y manejo de rutas inexistentes.
 
 ## Estructura del proyecto
 
 ```
-├── data/
-│   ├── cards.json
-│   └── users.json
 ├── src/
-│   ├── controller/   # Lógica de cada ruta
-│   ├── middleware/   # Middleware (logger)
-│   ├── router/       # Definición de rutas
-│   ├── types/        # Interfaces de TypeScript
-│   └── index.ts      # Punto de entrada del servidor
+│   ├── controllers/   # Lógica de cada ruta
+│   ├── middleware/    # Logger y manejo de errores
+│   ├── models/        # Esquemas y modelos de Mongoose
+│   ├── routes/        # Definición de rutas
+│   ├── types/         # Extensión del tipo Request (express.d.ts)
+│   └── app.ts         # Punto de entrada: conexión, middleware y servidor
 ├── eslint.config.js
 ├── package.json
 └── tsconfig.json
 ```
+
+## Requisitos previos
+
+- [Node.js](https://nodejs.org/) instalado.
+- [MongoDB](https://www.mongodb.com/) en ejecución en `mongodb://127.0.0.1:27017`.
 
 ## Instalación y uso
 
@@ -78,6 +132,12 @@ Todas las respuestas de error contienen únicamente el campo `message`.
 git clone <URL-DEL-REPOSITORIO>
 cd web_project_around_express
 npm install
+```
+
+Asegúrate de que MongoDB esté corriendo y luego inicia el servidor:
+
+```bash
+npm run dev
 ```
 
 ### Scripts disponibles
@@ -89,15 +149,23 @@ npm install
 | `npm run start` | Inicia en `localhost:3000` la versión compilada (ejecuta antes build) |
 | `npm run lint`  | Ejecuta ESLint sobre el proyecto                                      |
 
+## Usuario temporal
+
+Mientras no exista autenticación, el middleware de `app.ts` asigna a `req.user` el `_id` de un usuario existente en la base de datos. Para probar el proyecto:
+
+1. Crea un usuario con `POST /users` y copia su `_id`.
+2. Pega ese `_id` en el middleware de `app.ts`.
+3. Reinicia el servidor si no usas recarga en caliente.
+
 ## Capturas de pantalla
 
 ### GET /users
 
 ![GET /users](./docs/get-users.png)
 
-### GET /users/:_id
+### GET /users/:id
 
-![GET /users/:_id](./docs/get-users-by-id.png)
+![GET /users/:id](./docs/get-users-by-id.png)
 
 ### Error 404: usuario no encontrado
 
