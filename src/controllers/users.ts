@@ -15,15 +15,26 @@ const getUserById = async (req: Request, res: Response) => {
   }
 
   const user = await User.findById(req.params._id);
+  if (!user) {
+    throw Object.assign(new Error('No se encontro ningun usuario con ese id'), {
+      statusCode: 404,
+    });
+  }
   res.send(user);
 };
 
 const createUser = async (req: Request, res: Response) => {
+  if (!req.body) {
+    throw Object.assign(new Error('No existe cuerpo en la petición'), {
+      statusCode: 400,
+    });
+  }
   const user = await User.create({
     name: req.body.name,
     about: req.body.about,
     avatar: req.body.avatar,
   });
+
   res.status(201).send(user);
 };
 

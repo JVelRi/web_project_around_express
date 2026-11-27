@@ -4,10 +4,16 @@ export const errorHandler = (
   err: Error & { statusCode?: number },
   req: Request,
   res: Response,
-  _next: NextFunction,
+  next: NextFunction,
 ): void => {
   // Registramos el error en el servidor para poder depurarlo
   console.error(err);
+
+  // Si la respuesta ya empezó, Express debe cerrar la conexión
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
 
   let { statusCode = 500 } = err;
 

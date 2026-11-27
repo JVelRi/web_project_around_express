@@ -6,9 +6,9 @@ import { notFoundHandler, errorHandler } from './middleware/error-handler.js';
 mongoose
   .connect('mongodb://127.0.0.1:27017/aroundb')
   .then(() => {
-    console.log('Conectado a MongoDB');
+    console.warn('Conectado a MongoDB');
     app.listen(port, () => {
-      console.log(`Servidor ejecutándose en el puerto ${port}`);
+      console.warn(`Servidor ejecutándose en el puerto ${port}`);
     });
   })
   .catch((err) => console.error('Error de conexión', err));

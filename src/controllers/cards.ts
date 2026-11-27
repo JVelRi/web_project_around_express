@@ -11,19 +11,26 @@ const getCards = async (req: Request, res: Response) => {
   }));
 
   res.send(cardsWithIsLiked);
-  res.send(cards);
 };
 
 const createCard = async (req: Request, res: Response) => {
   if (!req.user) {
     throw Object.assign(new Error('No autorizado'), { statusCode: 401 });
   }
+  if (!req.body) {
+    throw Object.assign(new Error('No existe cuerpo en la petición'), {
+      statusCode: 400,
+    });
+  }
   const card = await Card.create({
     name: req.body.name,
     link: req.body.link,
     owner: req.user._id,
   });
-  res.status(201).send(card);
+  res.status(201).send({
+    ...card.toObject(),
+    isLiked: card.likes.some((id) => id.toString() === req.user?._id),
+  });
 };
 
 const deleteCard = async (req: Request, res: Response) => {
@@ -39,7 +46,10 @@ const deleteCard = async (req: Request, res: Response) => {
       },
     );
   }
-  res.send(card);
+  res.send({
+    ...card.toObject(),
+    isLiked: card.likes.some((id) => id.toString() === req.user?._id),
+  });
 };
 
 const likeCard = async (req: Request, res: Response) => {
